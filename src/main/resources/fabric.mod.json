@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "fallout",
+	"version": "${version}",
+	"name": "Fallout",
+	"description": "Adds the Nuke: a craftable, redstone- or punch-triggered nuclear device with a tick-spread shockwave, a towering particle mushroom cloud, flying debris, a scorched crater and lingering radiation. The explosion Mojang would never ship.",
+	"authors": [
+		"ContiSupply"
+	],
+	"contact": {},
+	"license": "MIT",
+	"icon": "assets/fallout/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.contisupply.fallout.Fallout"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.18.0",
+		"fabric": "*",
+		"minecraft": "~1.21.11",
+		"java": ">=21"
+	}
+}

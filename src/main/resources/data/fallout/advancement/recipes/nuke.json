@@ -1,0 +1,32 @@
+{
+	"parent": "minecraft:recipes/root",
+	"criteria": {
+		"has_tnt": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": "minecraft:tnt"
+					}
+				]
+			}
+		},
+		"has_the_recipe": {
+			"trigger": "minecraft:recipe_unlocked",
+			"conditions": {
+				"recipe": "fallout:nuke"
+			}
+		}
+	},
+	"requirements": [
+		[
+			"has_tnt",
+			"has_the_recipe"
+		]
+	],
+	"rewards": {
+		"recipes": [
+			"fallout:nuke"
+		]
+	}
+}
