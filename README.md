@@ -9,7 +9,9 @@ earth and lingering radiation. Built for filming.
 
 ## 1. Build & install
 
-Requirements: **Java 21** (JDK). Everything else is downloaded by the Gradle wrapper.
+Requirements: **Java 21 or newer** (JDK) — a modern JDK like Corretto/Temurin 25 works
+out of the box (the build compiles with `--release 21`, so no separate JDK 21 install is
+needed). Everything else is downloaded by the Gradle wrapper.
 
 ```bash
 ./gradlew build          # Linux/macOS
@@ -32,9 +34,18 @@ To test in a dev workspace instead: `./gradlew runClient`.
 | Minecraft | 1.21.11 |
 | Yarn mappings | 1.21.11+build.4 |
 | Fabric Loader | 0.18.4 |
-| Fabric API | 0.141.4+1.21.11 |
+| Fabric API | 0.141.2+1.21.11 |
 | Loom | 1.14.10 (plugin id `net.fabricmc.fabric-loom-remap` — 1.21.11 is the last *obfuscated* MC version, which uses the `-remap` flavour) |
-| Gradle (wrapper) | 8.14.3 |
+| Gradle (wrapper) | 9.2.1 |
+
+These four move together — don't downgrade one in isolation:
+* Fabric API `0.141.x` jars carry metadata only **Loom 1.14+** can read
+  (older Loom dies with *"Javadoc … must have an intermediary source namespace"*).
+* Loom `1.14.10` is published for **Gradle 9.2+** (its plugin metadata declares
+  `org.gradle.plugin.api-version 9.2.0`; Gradle 9.1 refuses it with a "no matching
+  variant" error).
+* Gradle **9.1+** is required to *run* on Java 25 (Gradle 8.x dies with
+  *"Unsupported class file major version 69"*).
 
 > **Note:** this project was authored in an offline environment where the final
 > `gradlew build` could not be executed (Mojang/FabricMC servers unreachable), so run the

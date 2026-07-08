@@ -32,9 +32,10 @@ processResources {
 }
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+	// Deliberately NO toolchain pin: `options.release = 21` below already produces
+	// Java 21 bytecode on any JDK >= 21, so whatever modern JDK runs Gradle
+	// (e.g. Java 25) is used directly instead of Gradle failing because it can't
+	// find or download a second JDK 21 installation.
 	withSourcesJar()
 }
 
