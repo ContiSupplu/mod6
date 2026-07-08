@@ -1,0 +1,9 @@
+{
+	"parent": "minecraft:block/orientable_with_bottom",
+	"textures": {
+		"front": "dinorunner:block/arcade_machine_front",
+		"side": "dinorunner:block/arcade_machine_side",
+		"top": "dinorunner:block/arcade_machine_top",
+		"bottom": "dinorunner:block/arcade_machine_bottom"
+	}
+}

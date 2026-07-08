@@ -1,19 +1,22 @@
 {
 	"schemaVersion": 1,
-	"id": "fallout",
+	"id": "dinorunner",
 	"version": "${version}",
-	"name": "Fallout",
-	"description": "Adds the Nuke: a craftable, redstone- or punch-triggered nuclear device with a tick-spread shockwave, a towering particle mushroom cloud, flying debris, a scorched crater and lingering radiation. The explosion Mojang would never ship.",
+	"name": "Dino Runner",
+	"description": "Adds a craftable Arcade Machine block. Right-click it to play a faithful recreation of the Chrome offline T-Rex runner: jump cacti, duck pterodactyls, chase your persistent high score, and watch the desert flip to night as you rack up points.",
 	"authors": [
 		"ContiSupply"
 	],
 	"contact": {},
 	"license": "MIT",
-	"icon": "assets/fallout/icon.png",
+	"icon": "assets/dinorunner/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.contisupply.fallout.Fallout"
+			"com.contisupply.dinorunner.DinoRunner"
+		],
+		"client": [
+			"com.contisupply.dinorunner.client.DinoRunnerClient"
 		]
 	},
 	"depends": {

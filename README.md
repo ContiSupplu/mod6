@@ -1,208 +1,132 @@
-# Fallout — the Nuke Minecraft would never ship
+# Dino Runner 🦖
 
-A Fabric mod for **Minecraft 1.21.11** that adds one block: the **Nuke**. Redstone- or
-punch-triggered, tension-building countdown, a shockwave that carves a 90-block crater
-without freezing the server, flying debris, a towering particle mushroom cloud, scorched
-earth and lingering radiation. Built for filming.
+The Chrome offline T-Rex game, recreated as a playable arcade cabinet inside Minecraft.
+
+Craft an **Arcade Machine**, place it, right-click it — and you're playing the dino game:
+auto-running pixel T-Rex, cacti to jump, pterodactyls to duck under, a score counter that
+ticks up, speed that keeps climbing, the day/night flip at 700 points, milestone beeps,
+a persistent high score, and a GAME OVER card with a restart button. All rendered as crisp
+monochrome pixel art on a glowing arcade screen with a marquee and optional CRT scanlines.
+
+- **Mod loader:** Fabric
+- **Minecraft:** 1.21.11
+- **Java (for building):** 21 or newer (Java 25 works — the toolchain is pinned for it)
 
 ---
 
-## 1. Build & install
+## Building
 
-Requirements: **Java 21 or newer** (JDK) — a modern JDK like Corretto/Temurin 25 works
-out of the box (the build compiles with `--release 21`, so no separate JDK 21 install is
-needed). Everything else is downloaded by the Gradle wrapper.
-
-```bash
-./gradlew build          # Linux/macOS
-gradlew build            # Windows
+```
+git clone -b claude/dino-runner-minecraft-mod-rovaa8 https://github.com/ContiSupplu/mod6.git
+cd mod6
+gradlew build
 ```
 
-The mod jar lands in `build/libs/fallout-1.0.0.jar` (ignore the `-sources` jar).
+The jar lands at `build\libs\dino-runner-1.0.0.jar` (ignore the `-sources` jar).
 
-Install:
-1. Install the [Fabric Loader](https://fabricmc.net/use/installer/) for **1.21.11** (loader 0.18+).
-2. Drop **fallout-1.0.0.jar** and **[Fabric API](https://modrinth.com/mod/fabric-api)**
-   (`0.141.x+1.21.11`) into your `mods/` folder.
+The toolchain in this repo (Gradle 9.2.1 wrapper, Loom 1.14.10, Loader 0.18.4,
+Fabric API 0.141.2+1.21.11, yarn 1.21.11+build.4) is the combination already proven to
+build on a Java 25 machine — don't bump one piece without the others. If a version ever
+stops resolving, current values live at <https://fabricmc.net/develop/>.
 
-To test in a dev workspace instead: `./gradlew runClient`.
+## Installing
 
-### Toolchain pins (already set in `gradle.properties`)
+1. Install the **Fabric loader profile for 1.21.11** from <https://fabricmc.net/use/installer/>.
+2. Download **Fabric API 0.141.2+1.21.11** from <https://modrinth.com/mod/fabric-api/versions>.
+3. Drop both jars into `%appdata%\.minecraft\mods`:
+   - `dino-runner-1.0.0.jar`
+   - `fabric-api-0.141.2+1.21.11.jar`
+4. Launch the Fabric 1.21.11 profile.
 
-| What | Version |
+## Getting the Arcade Machine
+
+Shaped recipe (also in the Functional Blocks creative tab):
+
+```
+stone       stone   stone
+stone   glass pane  stone        ->  Arcade Machine
+stone    redstone   stone
+```
+
+It faces you when placed, glows softly, and drops itself when mined (pickaxe is fastest).
+
+## Controls (while the game is open)
+
+| Key | Action |
 |---|---|
-| Minecraft | 1.21.11 |
-| Yarn mappings | 1.21.11+build.4 |
-| Fabric Loader | 0.18.4 |
-| Fabric API | 0.141.2+1.21.11 |
-| Loom | 1.14.10 (plugin id `net.fabricmc.fabric-loom-remap` — 1.21.11 is the last *obfuscated* MC version, which uses the `-remap` flavour) |
-| Gradle (wrapper) | 9.2.1 |
+| **Space** / **Up** / **W** / **Left-click** | Jump (tap = short hop, hold = full jump, hold on landing = bounce again) |
+| **Down** / **S** | Duck (on the ground) / fast-drop (in the air) |
+| **Space** after game over | Restart |
+| **Esc** | Leave the arcade |
 
-These four move together — don't downgrade one in isolation:
-* Fabric API `0.141.x` jars carry metadata only **Loom 1.14+** can read
-  (older Loom dies with *"Javadoc … must have an intermediary source namespace"*).
-* Loom `1.14.10` is published for **Gradle 9.2+** (its plugin metadata declares
-  `org.gradle.plugin.api-version 9.2.0`; Gradle 9.1 refuses it with a "no matching
-  variant" error).
-* Gradle **9.1+** is required to *run* on Java 25 (Gradle 8.x dies with
-  *"Unsupported class file major version 69"*).
+Ptero lanes: low ones you jump, head-height ones you duck under, high ones you just run past.
 
-> **Note:** this project was authored in an offline environment where the final
-> `gradlew build` could not be executed (Mojang/FabricMC servers unreachable), so run the
-> build once yourself. The code targets the 1.21.11 Yarn API precisely, but if Yarn moved
-> a name between snapshots, §6 lists the few version-sensitive call sites and their
-> one-line fixes.
+## Tuning the difficulty
 
-## 2. Using the nuke
+Everything is in `config/dinorunner.json` (created on first launch, rewritten with any
+missing options every launch, values clamped to sane ranges):
 
-* **Craft:** 8× TNT around 1× Nether Star (expensive on purpose).
-* **Arm:** power it with redstone **or** punch it (both configurable). A creeper-hiss
-  plays, the casing turns red and starts strobing light.
-* **Countdown:** default 10 s. Beeps start at 1/s and accelerate to a frantic 10/s with
-  rising pitch — that's your cue to get the camera rolling and *run*.
-* **Defuse:** right-click an armed nuke.
-* **Boom:** white flash, layered boom heard across the whole dimension, expanding
-  shockwave, debris, mushroom cloud, then 90 s of radiation over the crater.
-
-**Filming tips:** set your client particle setting to **All**, film from 150–250 blocks
-out at a slight elevation, and keep render distance ≥ 20 chunks. Every cloud particle is
-force-sent to clients, so distance shots work.
-
-## 3. How the destruction avoids freezing the game
-
-The naive approach — destroy a radius-90 sphere in one tick — is ~3 million
-`setBlockState` calls and a guaranteed multi-second freeze (or crash). Instead
-(`Detonation.java`):
-
-1. The blast is an **expanding spherical shell**. Each tick the wavefront advances by
-   `radius / shockwaveDurationTicks` blocks and only the thin shell between the old and
-   new radius is touched, so destruction ripples outward over ~8 seconds.
-2. A `ShellCursor` iterates **exactly** the shell's blocks: for each (x, y) column it
-   solves the in-shell z-range analytically (two square roots), never scanning the full
-   cube, and skips air via a fast path.
-3. A hard **per-tick budget** (`maxBlocksPerTick`) caps real block changes. If the wave
-   is deep underground and a shell is too rich, the cursor *pauses mid-shell* and resumes
-   next tick. The wave stalls a moment; the server never does. The budget is **shared**
-   across simultaneous detonations (chain reactions included), so five nukes cost the
-   same per tick as one.
-4. Block removal uses `NOTIFY_LISTENERS | FORCE_STATE | SKIP_DROPS` — no item drops, no
-   neighbour-update cascades (the two hidden costs of mass removal).
-5. Entities, debris and particles are all chance-gated and hard-capped independently.
-
-## 4. Config reference (`config/fallout.json`)
-
-Created on first launch; values are clamped to sane ranges on load.
-
-| Key | Default | What it does |
+| Key | Default | Meaning |
 |---|---|---|
-| `triggerByRedstone` | `true` | Arm when the block receives redstone power. |
-| `triggerByPunch` | `true` | Arm when a player left-clicks the block. |
-| `countdownSeconds` | `10` | Fuse length. Beeping accelerates as it runs out. |
-| `blastRadius` | `90` | Radius (blocks) of the destruction sphere. **The** spectacle/performance dial. |
-| `shockwaveDurationTicks` | `160` | Ticks for the wave to reach full radius (20 = 1 s). Longer = slower, more cinematic ripple and less work per tick. |
-| `maxBlocksPerTick` | `24000` | Hard cap on block changes per tick, shared across all live detonations. The anti-freeze valve. |
-| `craterDepthScale` | `0.55` | Crater depth as a fraction of radius (1.0 = full hemisphere). |
-| `chainReaction` | `true` | Nukes caught in a blast detonate sympathetically. |
-| `scorchedShellThickness` | `2.5` | Thickness of the charred shell left around the crater. |
-| `scorchChance` | `0.85` | Chance each rim block gets charred (blackstone/basalt/deepslate/coal/magma). |
-| `lingeringFireChance` | `0.08` | Chance to leave fire burning on charred blocks. |
-| `debrisChance` | `0.035` | Chance an exposed destroyed block launches as flying debris. |
-| `debrisMax` | `500` | Hard cap on debris entities per detonation. |
-| `debrisLaunchPower` | `1.6` | How hard debris is thrown. |
-| `cloudEnabled` | `true` | Master switch for the mushroom cloud. |
-| `cloudHeight` | `80` | Cap height above the detonation point. |
-| `cloudRadius` | `34` | Final cap radius. |
-| `cloudDurationTicks` | `600` | How long the cloud keeps emitting (600 = 30 s). |
-| `cloudParticleDensity` | `1.0` | Multiplies every particle count. Keep ≤ ~1.5: the golden cloud is dense already, and past that Minecraft's 16,384-particle engine cap starts silently dropping particles. |
-| `flashEnabled` | `true` | Blinding white flash at t=0. |
-| `screenShake` | `true` | Tiny velocity jolts rattle nearby players' cameras. |
-| `blastDamageEnabled` | `true` | The passing wavefront damages & flings entities. |
-| `blastDamageMax` | `150.0` | Damage at ground zero, falling linearly to 0 at the edge. |
-| `radiationEnabled` | `true` | Lingering radiation zone over the crater. |
-| `radiationRadiusMultiplier` | `1.25` | Radiation radius = blastRadius × this. |
-| `radiationDurationSeconds` | `90` | How long the zone persists. |
-| `radiationStrength` | `1` | Wither amplifier (0 = Wither I, 1 = Wither II…). Players also get nausea. |
+| `startSpeed` | 360 | Scroll speed at run start (game-px/s; the original ≈ 360) |
+| `maxSpeed` | 750 | Speed cap |
+| `acceleration` | 4.2 | Speed gained per second |
+| `gravity` | 2250 | Downward pull (px/s²) |
+| `jumpVelocity` | 650 | Jump launch speed |
+| `jumpCutVelocity` | 280 | Rise cap when you release jump early (variable jump height) |
+| `minJumpHeight` | 45 | Height every tap is guaranteed to reach |
+| `fastDropMultiplier` | 2.6 | Gravity multiplier while holding duck mid-air |
+| `minObstacleGap` | 250 | Minimum gap between obstacles (px) |
+| `gapSpeedFactor` | 0.32 | Extra gap proportional to speed |
+| `gapRandomFactor` | 0.42 | Random extra gap, as a fraction of speed |
+| `pteroMinScore` | 400 | Score at which pterodactyls appear |
+| `pteroChance` | 0.22 | Chance a spawn is a pterodactyl |
+| `scoreRate` | 0.028 | Score per pixel travelled (~10/s at start) |
+| `milestoneEvery` | 100 | Beep-beep + score flash interval |
+| `nightEvery` | 700 | Day/night flip interval |
+| `soundVolume` | 0.6 | Game beep volume, 0 mutes |
+| `crtScanlines` | true | CRT scanline overlay on the arcade screen |
 
-## 5. Recommended settings for the BIGGEST filmable explosion
+The high score lives in `config/dinorunner_highscore.txt` and survives restarts. It is
+saved at the moment of death (and on Esc mid-run if you beat it), so a crash can't eat it.
 
-Tested logic, honest numbers — for a decent PC (6+ cores, 6 GB allocated to MC,
-render distance 24):
+## Art & textures
 
-```json
-"blastRadius": 140,
-"shockwaveDurationTicks": 360,
-"maxBlocksPerTick": 32000,
-"craterDepthScale": 0.5,
-"debrisChance": 0.03,
-"debrisMax": 800,
-"cloudHeight": 120,
-"cloudRadius": 55,
-"cloudDurationTicks": 900,
-"cloudParticleDensity": 1.3
-```
+The **game itself uses no texture files** — the dino, cacti, pterodactyls, clouds, moon,
+stars, score font and GAME OVER card are all drawn as batched rectangles from pixel-art
+bitmaps in [`GameSprites.java`](src/main/java/com/contisupply/dinorunner/client/game/GameSprites.java)
+and [`PixelFont.java`](src/main/java/com/contisupply/dinorunner/client/game/PixelFont.java).
+Edit the `#`-grids there to reskin the game.
 
-Why these: radius 140 ≈ 5.7 M block sphere; at 32 k changes/tick worst case that's
-~18 ms of block work in the heaviest ticks — hitchy but alive, and the longer
-`shockwaveDurationTicks` (18 s wave) spreads the underground bulk thin. The cloud is
-pure particles: cranking it costs the *client* fps, not the server, so lower
-`cloudParticleDensity` first if your recording stutters, and lower `maxBlocksPerTick`
-to 16000 if the tick-lag bothers you (the wave just takes longer).
+The block textures are generated placeholder pixel art, already included. Replace these
+PNGs to reskin the cabinet:
 
-The cloud's golden color scheme lives in the palette constants at the top of
-`MushroomCloud.java` (`CORE`/`BODY`/`RIM` hex values) — edit those to restyle it.
+| File | Face |
+|---|---|
+| `src/main/resources/assets/dinorunner/textures/block/arcade_machine_front.png` | Screen + controls (16x16) |
+| `src/main/resources/assets/dinorunner/textures/block/arcade_machine_side.png` | Side art (16x16) |
+| `src/main/resources/assets/dinorunner/textures/block/arcade_machine_top.png` | Top vents (16x16) |
+| `src/main/resources/assets/dinorunner/textures/block/arcade_machine_bottom.png` | Bottom (16x16) |
+| `src/main/resources/assets/dinorunner/icon.png` | Mod icon (128x128) |
 
-Do **not** stack `blastRadius` > 200 with `shockwaveDurationTicks` < 100 unless you
-enjoy slideshow footage — the budget will protect the server, but the wave will stall
-visibly while it grinds through millions of underground blocks.
+## How it works (code tour)
 
-## 6. Limitations & version-sensitive call sites
+- `client/game/DinoGame.java` — the whole simulation: jump physics, obstacle spawning
+  with speed-scaled gaps, forgiving multi-box collision, score/speed scaling, day/night.
+  Pure Java, no Minecraft imports, driven by real delta-time (fps-independent).
+- `client/screen/DinoGameScreen.java` — draws everything with `DrawContext.fill` under a
+  single scale matrix and polls GLFW directly for input, so it dodges both the 1.21.6 GUI
+  overhaul and the 1.21.9 input rework.
+- `block/ArcadeMachineBlock.java` — furnace-style facing block; right-click runs a
+  `Runnable` injected by the client entrypoint, so dedicated servers never touch client code.
 
-**Limitations (by design):**
-* An in-flight explosion does **not** survive a server restart — the wave stops where it
-  was (armed, not-yet-detonated nukes *do* persist). The crater keeps whatever shape it reached.
-* Lighting is recalculated normally, so the biggest craters cause brief light-update lag
-  at the rim; unavoidable without leaving broken lighting.
-* Nuking an ocean leaves water frozen mid-wall at the crater edge (neighbour updates are
-  deliberately suppressed); it flows in as soon as anything touches it. Eerie, arguably a feature.
-* Chunks outside loaded range are skipped, never force-loaded — keep the whole radius
-  within view distance for a perfect sphere.
-* No true camera-FOV screen shake (that needs a client mixin); `screenShake` approximates
-  it with physical velocity jolts, and nausea in the radiation zone adds wobble.
-* TNT/creeper explosions do **not** set the nuke off — only its own triggers do.
+## Limitations & notes
 
-**Version-sensitive call sites:** the code has been compile-verified against
-1.21.11 / yarn `1.21.11+build.4` on a real machine. If you ever port it to a *different*
-1.21.x version, the names that moved during the cycle are: `velocityDirty` (was
-`velocityModified`), `net.minecraft.sound.BlockSoundGroup` (was in `.block`),
-`TintedParticleEffect.create(ParticleTypes.FLASH, argb)` (pre-1.21.5, FLASH was untinted —
-pass `ParticleTypes.FLASH` directly), `Entity.getPos()` (removed — this code uses
-`getX/getY/getZ` + `squaredDistanceTo` instead), `getTopYInclusive()`,
-`readData/writeData(ReadView/WriteView)`, and the `WireOrientation` parameter on
-`neighborUpdate`.
-
-## 7. Where to put better art
-
-Generated placeholder textures live at
-`src/main/resources/assets/fallout/textures/block/`:
-`nuke_top/side/bottom.png` (idle), `nuke_top_primed/side_primed.png` (armed),
-`nuke_top_lit/side_lit.png` (armed, lamp flash) — 16×16 RGBA. Replace them 1:1 (any
-square power-of-two size works) and `assets/fallout/icon.png` (128×128) for the mod icon.
-
-## 8. Project layout
-
-```
-src/main/java/com/contisupply/fallout/
-├── Fallout.java             entrypoint, event wiring
-├── FalloutConfig.java       JSON config, defaults + clamping
-├── ModContent.java          block/item/block-entity registration
-├── block/
-│   ├── NukeBlock.java       triggers (redstone/punch), defuse, blockstates
-│   └── NukeBlockEntity.java the countdown: beeps, strobe, persistence
-└── nuke/
-    ├── DetonationManager.java  tick driver, shared budget, pending queue
-    ├── Detonation.java         expanding-shell destruction, debris, scorch, knockback
-    ├── MushroomCloud.java      the particle money shot
-    └── RadiationZone.java      lingering wither/nausea + ash-fall
-```
-
-All code is original. MIT licensed. Aim away from anything you love.
+- The game is client-side: each player at the same machine plays their own run, and the
+  high score is per-computer (stored in the local config folder), not per-world.
+- Opening the screen pauses a singleplayer world (like the pause menu) — beeps still play.
+- Sounds reuse vanilla's 8-bit note-block "bit" instrument, so there are no custom audio
+  files to install.
+- For recording, GUI Scale 1 or 2 gives the sharpest integer-scaled pixels; on very small
+  windows the game shrinks smoothly to fit instead of cropping.
+- Scores display up to 99999, like the original's five digits.

@@ -1,8 +1,0 @@
-{
-	"parent": "minecraft:block/cube_bottom_top",
-	"textures": {
-		"top": "fallout:block/nuke_top_primed",
-		"side": "fallout:block/nuke_side_primed",
-		"bottom": "fallout:block/nuke_bottom"
-	}
-}

@@ -1,8 +1,0 @@
-{
-	"variants": {
-		"primed=false,lit=false": { "model": "fallout:block/nuke" },
-		"primed=false,lit=true": { "model": "fallout:block/nuke" },
-		"primed=true,lit=false": { "model": "fallout:block/nuke_primed" },
-		"primed=true,lit=true": { "model": "fallout:block/nuke_primed_lit" }
-	}
-}

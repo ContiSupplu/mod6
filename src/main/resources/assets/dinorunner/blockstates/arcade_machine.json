@@ -1,0 +1,8 @@
+{
+	"variants": {
+		"facing=north": { "model": "dinorunner:block/arcade_machine" },
+		"facing=east": { "model": "dinorunner:block/arcade_machine", "y": 90 },
+		"facing=south": { "model": "dinorunner:block/arcade_machine", "y": 180 },
+		"facing=west": { "model": "dinorunner:block/arcade_machine", "y": 270 }
+	}
+}
