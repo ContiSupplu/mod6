@@ -17,10 +17,18 @@ import net.minecraft.util.math.random.Random;
  *
  * ============================== HOW THE CLOUD IS BUILT ==============================
  *
- * The trick to an opaque *colored* cloud in vanilla is dust particles: they accept any
- * RGB color and render up to 4x size, so repainting a shape with a few hundred fat dust
- * particles per tick reads as one solid, roiling volume on camera. Each element below is
- * re-emitted every tick from simple parametric math around the detonation point:
+ * Two layers make the cloud read as solid from filming distance:
+ *
+ *  GLOW LAYER - tinted FLASH particles. Each renders as a billboard several blocks wide
+ *  (it's the firework-burst flash), so a steady drizzle of them (~25/tick, 4-tick lives)
+ *  tiles the whole volume into one continuous luminous golden mass. Their short lives and
+ *  random phases make the surface roil like burning gas.
+ *
+ *  GRAIN LAYER - max-size colored dust particles scattered through the same shapes,
+ *  adding texture and the darker rim shading over the glow.
+ *
+ * Each element below is re-emitted every tick from simple parametric math around the
+ * detonation point:
  *
  *  1. FLASH (t = 0..8):    vanilla FLASH (tinted pure white) + a radial END_ROD spray.
  *                          One blinding frame for the camera.
@@ -56,15 +64,19 @@ final class MushroomCloud {
 	/** FLASH is a tintable particle on 1.21.11 (ARGB, alpha ignored); we want pure white. */
 	private static final ParticleEffect WHITE_FLASH =
 			TintedParticleEffect.create(ParticleTypes.FLASH, 0xFFFFFFFF);
-	/** Warm gold flash pulsed inside the young cloud for the inner-glow look. */
-	private static final ParticleEffect GOLD_FLASH =
-			TintedParticleEffect.create(ParticleTypes.FLASH, 0xFFFFD780);
 
-	// The golden palette (tweak these hex values to restyle the whole cloud).
-	private static final float DUST_SCALE = 3.6f;
-	private static final ParticleEffect[] CORE = dusts(DUST_SCALE, 0xFFE879, 0xFFDC55, 0xFFF0A0);
-	private static final ParticleEffect[] BODY = dusts(DUST_SCALE, 0xF2B53C, 0xE8A72E, 0xD9932A);
-	private static final ParticleEffect[] RIM = dusts(3.2f, 0xB97B22, 0x9C6420, 0x8A5A1C);
+	// THE key to the solid look: FLASH billboards render several blocks wide (they're the
+	// firework burst flash), so a steady drizzle of tinted ones tiles the cloud's volume
+	// into one continuous luminous mass. Dust alone reads as confetti from 200 blocks out.
+	// Tint tiers shade the volume: white-hot core -> gold -> deep amber edges.
+	private static final ParticleEffect[] GLOW_CORE = flashes(0xFFFFF2C0, 0xFFFFE28A);
+	private static final ParticleEffect[] GLOW_BODY = flashes(0xFFFFC94D, 0xFFF5B23A, 0xFFE89B2A);
+	private static final ParticleEffect[] GLOW_DEEP = flashes(0xFFC97F1E, 0xFFB06A16);
+
+	// Grain/texture layer over the glow (tweak hexes to restyle the whole cloud).
+	private static final ParticleEffect[] CORE = dusts(4.0f, 0xFFE879, 0xFFDC55, 0xFFF0A0);
+	private static final ParticleEffect[] BODY = dusts(4.0f, 0xF2B53C, 0xE8A72E, 0xD9932A);
+	private static final ParticleEffect[] RIM = dusts(3.4f, 0xB97B22, 0x9C6420, 0x8A5A1C);
 
 	private MushroomCloud() {
 	}
@@ -73,6 +85,14 @@ final class MushroomCloud {
 		ParticleEffect[] effects = new ParticleEffect[colors.length];
 		for (int i = 0; i < colors.length; i++) {
 			effects[i] = new DustParticleEffect(colors[i], scale);
+		}
+		return effects;
+	}
+
+	private static ParticleEffect[] flashes(int... colors) {
+		ParticleEffect[] effects = new ParticleEffect[colors.length];
+		for (int i = 0; i < colors.length; i++) {
+			effects[i] = TintedParticleEffect.create(ParticleTypes.FLASH, colors[i]);
 		}
 		return effects;
 	}
@@ -119,6 +139,25 @@ final class MushroomCloud {
 				: 0.35 + 0.65 * easeOut((double) (age - riseTicks) / Math.max(1, duration - riseTicks));
 		double headR = Math.max(4.0, capRadius * growth);
 
+		// GLOW LAYER: enough big flash billboards per tick to tile the ball solid.
+		// (Flash quads cover roughly a 5-block radius; sized so ~2 layers overlap.)
+		int headGlow = scaled((int) Math.ceil(3 + headR * 0.55), density);
+		for (int i = 0; i < headGlow; i++) {
+			double u = Math.cbrt(random.nextDouble());
+			double theta = random.nextDouble() * MathHelper.TAU;
+			double phi = Math.acos(2.0 * random.nextDouble() - 1.0);
+			double rr = headR * u;
+			double px = Math.sin(phi) * Math.cos(theta) * rr;
+			double py = Math.cos(phi) * rr * 0.85;
+			double pz = Math.sin(phi) * Math.sin(theta) * rr;
+
+			ParticleEffect glow = u < (young ? 0.55 : 0.4) ? pick(random, GLOW_CORE)
+					: u > 0.8 ? pick(random, GLOW_DEEP)
+					: pick(random, GLOW_BODY);
+			spawnForced(world, glow, center.x + px, headY + py, center.z + pz, 1, 0, 0, 0, 0);
+		}
+
+		// GRAIN LAYER: dust texture and rim shading over the glow.
 		int headBlobs = scaled(26, density);
 		for (int i = 0; i < headBlobs; i++) {
 			// Uniform point inside a ball (cube-root radius bias), squashed 15% vertically.
@@ -150,9 +189,9 @@ final class MushroomCloud {
 						center.z + spread(random, headR * 0.4), 1, 0, 0, 0, 0);
 			}
 		}
-		// The inner-glow pulse.
+		// An extra white-hot pulse dead center while the cloud is young.
 		if (age < duration / 2 && age % 40 == 20) {
-			spawnForced(world, GOLD_FLASH, center.x, headY, center.z, 1, 0, 0, 0, 0);
+			spawnForced(world, pick(random, GLOW_CORE), center.x, headY, center.z, 1, 0, 0, 0, 0);
 		}
 
 		// --- 3. The collar: the wide skirt ringing the head's base -------
@@ -161,11 +200,14 @@ final class MushroomCloud {
 			for (int i = 0; i < collarPoints; i++) {
 				double angle = (MathHelper.TAU * i) / collarPoints + random.nextDouble() * 0.5;
 				double cr = headR * (1.02 + random.nextDouble() * 0.3);
+				double cx = center.x + Math.cos(angle) * cr;
+				double cy = headY - headR * 0.25 + spread(random, 2.5);
+				double cz = center.z + Math.sin(angle) * cr;
 				spawnForced(world, random.nextBoolean() ? pick(random, RIM) : pick(random, BODY),
-						center.x + Math.cos(angle) * cr,
-						headY - headR * 0.25 + spread(random, 2.5),
-						center.z + Math.sin(angle) * cr,
-						3, 1.8, 1.2, 1.8, 0);
+						cx, cy, cz, 3, 1.8, 1.2, 1.8, 0);
+				if (i % 3 == 0) {
+					spawnForced(world, pick(random, GLOW_DEEP), cx, cy, cz, 1, 0, 0, 0, 0);
+				}
 			}
 		}
 
@@ -173,6 +215,17 @@ final class MushroomCloud {
 		if (age > 4) {
 			double stemR = capRadius * 0.22;
 			double stemTop = Math.max(4.0, headY - center.y - headR * 0.5);
+
+			// Glow core of the column: a few big flashes along the axis tile it solid.
+			int stemGlow = scaled(4, density);
+			for (int i = 0; i < stemGlow; i++) {
+				double h = random.nextDouble() * stemTop;
+				double rr = stemR * 0.5 * Math.sqrt(random.nextDouble());
+				double angle = random.nextDouble() * MathHelper.TAU;
+				spawnForced(world, young ? pick(random, GLOW_BODY) : pick(random, GLOW_DEEP),
+						center.x + Math.cos(angle) * rr, center.y + h, center.z + Math.sin(angle) * rr,
+						1, 0, 0, 0, 0);
+			}
 
 			int slices = scaled(12, density);
 			for (int i = 0; i < slices; i++) {
