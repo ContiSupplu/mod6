@@ -52,7 +52,7 @@ public class RadiationZone {
 	private void irradiate(ServerWorld world) {
 		Box box = Box.of(center, radius * 2, radius * 2, radius * 2);
 		for (LivingEntity entity : world.getEntitiesByClass(LivingEntity.class, box, e -> true)) {
-			if (entity.getPos().squaredDistanceTo(center) > radius * radius) {
+			if (entity.squaredDistanceTo(center) > radius * radius) {
 				continue;
 			}
 			if (entity instanceof PlayerEntity player && (player.isCreative() || player.isSpectator())) {

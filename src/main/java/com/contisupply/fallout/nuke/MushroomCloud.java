@@ -3,6 +3,7 @@ package com.contisupply.fallout.nuke;
 import com.contisupply.fallout.FalloutConfig;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.particle.TintedParticleEffect;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
@@ -41,6 +42,9 @@ import net.minecraft.util.math.random.Random;
  * =====================================================================================
  */
 final class MushroomCloud {
+	/** FLASH is a tintable particle on 1.21.11 (ARGB, alpha ignored); we want pure white. */
+	private static final ParticleEffect WHITE_FLASH =
+			TintedParticleEffect.create(ParticleTypes.FLASH, 0xFFFFFFFF);
 
 	private MushroomCloud() {
 	}
@@ -65,7 +69,7 @@ final class MushroomCloud {
 
 		// --- 1. The flash ------------------------------------------------
 		if (cfg.flashEnabled && age <= 8) {
-			spawnForced(world, ParticleTypes.FLASH,
+			spawnForced(world, WHITE_FLASH,
 					center.x, center.y + 4, center.z, 3, 6.0, 4.0, 6.0, 0);
 			spawnForced(world, ParticleTypes.END_ROD,
 					center.x, center.y + 2, center.z, scaled(60, density), 1.5, 1.5, 1.5, 0.55);

@@ -277,7 +277,7 @@ public class Detonation {
 				dx / dist * power,
 				0.5 + random.nextDouble() * 0.7 * cfg.debrisLaunchPower,
 				dz / dist * power);
-		debris.velocityModified = true;
+		debris.velocityDirty = true;
 		debrisSpawned++;
 	}
 
@@ -315,7 +315,7 @@ public class Detonation {
 		DamageSource source = world.getDamageSources().explosion(null, null);
 
 		for (LivingEntity entity : world.getEntitiesByClass(LivingEntity.class, searchBox, e -> true)) {
-			double dist = entity.getPos().distanceTo(centerVec);
+			double dist = Math.sqrt(entity.squaredDistanceTo(centerVec));
 			if (dist < bandMin || dist >= bandMax) {
 				continue;
 			}
@@ -324,10 +324,11 @@ public class Detonation {
 			entity.damage(world, source, damage);
 
 			// Fling it away from ground zero.
-			Vec3d away = entity.getPos().subtract(centerVec).normalize();
+			Vec3d away = new Vec3d(entity.getX() - centerVec.x, entity.getY() - centerVec.y,
+					entity.getZ() - centerVec.z).normalize();
 			double punch = 0.8 + 2.8 * falloff;
 			entity.addVelocity(away.x * punch, 0.4 + punch * 0.35, away.z * punch);
-			entity.velocityModified = true;
+			entity.velocityDirty = true;
 		}
 	}
 
@@ -358,7 +359,7 @@ public class Detonation {
 	private void shakePlayers() {
 		double shakeRange = radius * 1.5;
 		for (ServerPlayerEntity player : world.getPlayers()) {
-			double dist = player.getPos().distanceTo(centerVec);
+			double dist = Math.sqrt(player.squaredDistanceTo(centerVec));
 			if (dist > shakeRange || player.isSpectator()) {
 				continue;
 			}
@@ -367,7 +368,7 @@ public class Detonation {
 					(random.nextDouble() - 0.5) * strength,
 					(random.nextDouble() - 0.5) * strength * 0.6,
 					(random.nextDouble() - 0.5) * strength);
-			player.velocityModified = true;
+			player.velocityDirty = true;
 		}
 	}
 

@@ -167,17 +167,15 @@ visibly while it grinds through millions of underground blocks.
   it with physical velocity jolts, and nausea in the radiation zone adds wobble.
 * TNT/creeper explosions do **not** set the nuke off — only its own triggers do.
 
-**Version-sensitive call sites** (Yarn moved these names during the 1.21.x cycle; if
-`gradlew build` complains, these are the one-line fixes — everything else is stable API):
-
-| File / call | If the compiler complains… |
-|---|---|
-| `MushroomCloud.spawnForced` → `world.spawnParticles(player, effect, true, true, …)` | Older overload takes a single boolean: drop the second `true`. |
-| `SoundEvents.ENTITY_GENERIC_EXPLODE.value()` / `BLOCK_NOTE_BLOCK_PLING.value()` | If "cannot find method value()", the constant is a plain `SoundEvent` — remove `.value()`. Conversely, if a plain constant mismatches `RegistryEntry`, add `.value()`. |
-| `world.getTopYInclusive()` (`Detonation` constructor) | Pre-1.21.2 name is `getTopY()`. |
-| `NukeBlock.neighborUpdate(…, WireOrientation, …)` | Pre-1.21.2 has no `WireOrientation` parameter. |
-| `NukeBlockEntity.readData/writeData(ReadView/WriteView)` | Pre-1.21.6 uses `readNbt/writeNbt(NbtCompound, RegistryWrapper.WrapperLookup)`. |
-| `world.getChunkManager().isChunkLoaded(cx, cz)` | Alternatively `world.isChunkLoaded(cx, cz)`. |
+**Version-sensitive call sites:** the code has been compile-verified against
+1.21.11 / yarn `1.21.11+build.4` on a real machine. If you ever port it to a *different*
+1.21.x version, the names that moved during the cycle are: `velocityDirty` (was
+`velocityModified`), `net.minecraft.sound.BlockSoundGroup` (was in `.block`),
+`TintedParticleEffect.create(ParticleTypes.FLASH, argb)` (pre-1.21.5, FLASH was untinted —
+pass `ParticleTypes.FLASH` directly), `Entity.getPos()` (removed — this code uses
+`getX/getY/getZ` + `squaredDistanceTo` instead), `getTopYInclusive()`,
+`readData/writeData(ReadView/WriteView)`, and the `WireOrientation` parameter on
+`neighborUpdate`.
 
 ## 7. Where to put better art
 
