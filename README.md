@@ -113,7 +113,7 @@ Created on first launch; values are clamped to sane ranges on load.
 | `cloudHeight` | `80` | Cap height above the detonation point. |
 | `cloudRadius` | `34` | Final cap radius. |
 | `cloudDurationTicks` | `600` | How long the cloud keeps emitting (600 = 30 s). |
-| `cloudParticleDensity` | `1.0` | Multiplies every particle count. |
+| `cloudParticleDensity` | `1.0` | Multiplies every particle count. Keep ≤ ~1.5: the golden cloud is dense already, and past that Minecraft's 16,384-particle engine cap starts silently dropping particles. |
 | `flashEnabled` | `true` | Blinding white flash at t=0. |
 | `screenShake` | `true` | Tiny velocity jolts rattle nearby players' cameras. |
 | `blastDamageEnabled` | `true` | The passing wavefront damages & flings entities. |
@@ -138,7 +138,7 @@ render distance 24):
 "cloudHeight": 120,
 "cloudRadius": 55,
 "cloudDurationTicks": 900,
-"cloudParticleDensity": 1.6
+"cloudParticleDensity": 1.3
 ```
 
 Why these: radius 140 ≈ 5.7 M block sphere; at 32 k changes/tick worst case that's
@@ -147,6 +147,9 @@ Why these: radius 140 ≈ 5.7 M block sphere; at 32 k changes/tick worst case th
 pure particles: cranking it costs the *client* fps, not the server, so lower
 `cloudParticleDensity` first if your recording stutters, and lower `maxBlocksPerTick`
 to 16000 if the tick-lag bothers you (the wave just takes longer).
+
+The cloud's golden color scheme lives in the palette constants at the top of
+`MushroomCloud.java` (`CORE`/`BODY`/`RIM` hex values) — edit those to restyle it.
 
 Do **not** stack `blastRadius` > 200 with `shockwaveDurationTicks` < 100 unless you
 enjoy slideshow footage — the budget will protect the server, but the wave will stall

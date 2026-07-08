@@ -1,6 +1,7 @@
 package com.contisupply.fallout.nuke;
 
 import com.contisupply.fallout.FalloutConfig;
+import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.particle.TintedParticleEffect;
@@ -11,42 +12,73 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 
 /**
- * The mushroom cloud - a scripted, purely server-side particle show.
+ * The mushroom cloud - a scripted, purely server-side particle show, styled as a DENSE
+ * GOLDEN FIREBALL CLOUD: an opaque, glowing amber mass rather than wispy smoke.
  *
  * ============================== HOW THE CLOUD IS BUILT ==============================
  *
- * The cloud is drawn fresh every tick from four layered elements, all positioned by
- * simple parametric math around the detonation point:
+ * The trick to an opaque *colored* cloud in vanilla is dust particles: they accept any
+ * RGB color and render up to 4x size, so repainting a shape with a few hundred fat dust
+ * particles per tick reads as one solid, roiling volume on camera. Each element below is
+ * re-emitted every tick from simple parametric math around the detonation point:
  *
- *  1. FLASH (t = 0..8):        vanilla FLASH particles + a radial END_ROD spray. One
- *                              blinding white frame for the camera.
- *  2. FIREBALL (t = 0..rise):  a ball of FLAME/LAVA particles that inflates while its
- *                              center eases upward from the ground to cloudHeight.
- *                              This ball *becomes* the head of the mushroom.
- *  3. STEM (t = 6..end):       campfire signal smoke (the longest-lived, most opaque
- *                              vanilla particle - ideal at filming distance) spawned in
- *                              a gently wobbling column between the ground and the cap.
- *                              A ground "base surge" skirt pushes smoke outward at the
- *                              foot of the column, like the real thing.
- *  4. CAP (t > rise):          a torus that expands from 30% to 100% of cloudRadius:
- *                              - an even RIM ring with outward-curling velocity
- *                                (count=0 particle packets encode a velocity vector),
- *                              - a randomized DOME fill above the rim (denser + higher
- *                                towards the middle, giving the classic silhouette),
- *                              - an UNDERSIDE skirt that curls back in below the rim.
+ *  1. FLASH (t = 0..8):    vanilla FLASH (tinted pure white) + a radial END_ROD spray.
+ *                          One blinding frame for the camera.
+ *  2. HEAD (whole show):   a solid ball of dust, filled uniformly via cube-root radius
+ *                          sampling and slightly squashed vertically. It IS the fireball:
+ *                          it inflates while easing up from the ground to cloudHeight,
+ *                          then keeps swelling to the full cap radius. Color is chosen by
+ *                          relative depth - bright gold core, amber body, brown rim - so
+ *                          the ball shades itself like the reference footage. FLAME and
+ *                          LAVA sprinkles inside keep it glowing; a tinted gold FLASH
+ *                          pulses deep inside every two seconds while the cloud is young.
+ *  3. COLLAR (t > rise):   the wide ledge of dust ringing the base of the head - the
+ *                          signature skirt under a nuke's cap.
+ *  4. STEM (t > 4):        a thick SOLID column of dust (radius 22% of the cap) from the
+ *                          crater to the head, wobbling slowly so it looks alive, with
+ *                          fire inside the lower third while the blast is young.
+ *  5. BASE SURGE:          a dust ring that crawls outward along the ground from the
+ *                          stem's foot, like the dust wall in real test footage.
+ *  6. SKY DEBRIS + ASH:    single dark smoke specks scattered across a huge dome (the
+ *                          black flecks in the reference shot) and slow ash-fall for the
+ *                          back half of the show.
  *
  * Every particle is sent with force=true so the cloud renders at full filming distance
  * (default packets are dropped past ~32 blocks, which would gut the money shot).
- * Total emission is a few hundred particles per tick and scales linearly with
- * cloudParticleDensity - spectacular on camera, trivial for the renderer.
+ *
+ * Budget: roughly 300-400 particles/tick at density 1.0, i.e. ~8-10k alive at steady
+ * state - comfortably inside Minecraft's 16,384-particle engine cap. Keep
+ * cloudParticleDensity at or below ~1.5, or the engine starts silently dropping
+ * particles (including the flames and ash).
  * =====================================================================================
  */
 final class MushroomCloud {
 	/** FLASH is a tintable particle on 1.21.11 (ARGB, alpha ignored); we want pure white. */
 	private static final ParticleEffect WHITE_FLASH =
 			TintedParticleEffect.create(ParticleTypes.FLASH, 0xFFFFFFFF);
+	/** Warm gold flash pulsed inside the young cloud for the inner-glow look. */
+	private static final ParticleEffect GOLD_FLASH =
+			TintedParticleEffect.create(ParticleTypes.FLASH, 0xFFFFD780);
+
+	// The golden palette (tweak these hex values to restyle the whole cloud).
+	private static final float DUST_SCALE = 3.6f;
+	private static final ParticleEffect[] CORE = dusts(DUST_SCALE, 0xFFE879, 0xFFDC55, 0xFFF0A0);
+	private static final ParticleEffect[] BODY = dusts(DUST_SCALE, 0xF2B53C, 0xE8A72E, 0xD9932A);
+	private static final ParticleEffect[] RIM = dusts(3.2f, 0xB97B22, 0x9C6420, 0x8A5A1C);
 
 	private MushroomCloud() {
+	}
+
+	private static ParticleEffect[] dusts(float scale, int... colors) {
+		ParticleEffect[] effects = new ParticleEffect[colors.length];
+		for (int i = 0; i < colors.length; i++) {
+			effects[i] = new DustParticleEffect(colors[i], scale);
+		}
+		return effects;
+	}
+
+	private static ParticleEffect pick(Random random, ParticleEffect[] effects) {
+		return effects[random.nextInt(effects.length)];
 	}
 
 	/** Sends a particle batch to every player, bypassing the 32-block server cull. */
@@ -66,6 +98,7 @@ final class MushroomCloud {
 
 		// How long the fireball takes to climb to cap height.
 		int riseTicks = MathHelper.clamp(duration / 4, 40, 200);
+		boolean young = age < riseTicks + 80;
 
 		// --- 1. The flash ------------------------------------------------
 		if (cfg.flashEnabled && age <= 8) {
@@ -75,122 +108,122 @@ final class MushroomCloud {
 					center.x, center.y + 2, center.z, scaled(60, density), 1.5, 1.5, 1.5, 0.55);
 		}
 
-		// --- 2. The rising fireball --------------------------------------
-		if (age <= riseTicks) {
-			double rise = easeOut((double) age / riseTicks);
-			double ballY = center.y + 4 + (height - 4) * rise;
-			double ballR = 5 + (capRadius * 0.45 - 5) * rise;
+		// --- 2. The head: one solid golden ball, rising then swelling ----
+		double climb = easeOut(Math.min(1.0, (double) age / riseTicks));
+		double headY = center.y + 4 + (height - 4) * climb;
+		if (age > riseTicks) {
+			headY += 2.0 * Math.sin(age * 0.03); // the mature head slowly breathes
+		}
+		double growth = age <= riseTicks
+				? 0.35 * climb
+				: 0.35 + 0.65 * easeOut((double) (age - riseTicks) / Math.max(1, duration - riseTicks));
+		double headR = Math.max(4.0, capRadius * growth);
 
-			spawnForced(world, ParticleTypes.FLAME,
-					center.x, ballY, center.z, scaled(28, density), ballR * 0.5, ballR * 0.4, ballR * 0.5, 0.02);
-			spawnForced(world, ParticleTypes.LAVA,
-					center.x, ballY, center.z, scaled(6, density), ballR * 0.35, ballR * 0.3, ballR * 0.35, 0);
-			if (age % 3 == 0) {
-				spawnForced(world, ParticleTypes.EXPLOSION_EMITTER,
-						center.x + spread(random, ballR * 0.4), ballY + spread(random, ballR * 0.3),
-						center.z + spread(random, ballR * 0.4), 1, 0, 0, 0, 0);
-			}
-			// Dark smoke shroud around the fire so the ball reads as a roiling mass.
-			spawnForced(world, ParticleTypes.LARGE_SMOKE,
-					center.x, ballY, center.z, scaled(16, density), ballR * 0.6, ballR * 0.45, ballR * 0.6, 0.01);
+		int headBlobs = scaled(26, density);
+		for (int i = 0; i < headBlobs; i++) {
+			// Uniform point inside a ball (cube-root radius bias), squashed 15% vertically.
+			double u = Math.cbrt(random.nextDouble());
+			double theta = random.nextDouble() * MathHelper.TAU;
+			double phi = Math.acos(2.0 * random.nextDouble() - 1.0);
+			double rr = headR * u;
+			double px = Math.sin(phi) * Math.cos(theta) * rr;
+			double py = Math.cos(phi) * rr * 0.85;
+			double pz = Math.sin(phi) * Math.sin(theta) * rr;
+
+			// Shade by depth: bright core -> amber body -> brown rim. Young cloud burns brighter.
+			ParticleEffect dust = u < (young ? 0.6 : 0.45) ? pick(random, CORE)
+					: u > 0.82 ? pick(random, RIM)
+					: pick(random, BODY);
+			spawnForced(world, dust, center.x + px, headY + py, center.z + pz,
+					4, 1.6, 1.4, 1.6, 0);
 		}
 
-		// --- 3. The stem + base surge ------------------------------------
-		if (age > 6) {
-			double rise = easeOut(Math.min(1.0, (double) age / riseTicks));
-			double columnTop = 4 + (height - 4) * rise;
-			double stemR = capRadius * 0.16;
+		// Glow inside the head: flames always, lava + explosion bursts while climbing.
+		spawnForced(world, ParticleTypes.FLAME,
+				center.x, headY, center.z, scaled(8, density), headR * 0.45, headR * 0.35, headR * 0.45, 0.02);
+		if (age <= riseTicks) {
+			spawnForced(world, ParticleTypes.LAVA,
+					center.x, headY, center.z, scaled(6, density), headR * 0.35, headR * 0.3, headR * 0.35, 0);
+			if (age % 3 == 0) {
+				spawnForced(world, ParticleTypes.EXPLOSION_EMITTER,
+						center.x + spread(random, headR * 0.4), headY + spread(random, headR * 0.3),
+						center.z + spread(random, headR * 0.4), 1, 0, 0, 0, 0);
+			}
+		}
+		// The inner-glow pulse.
+		if (age < duration / 2 && age % 40 == 20) {
+			spawnForced(world, GOLD_FLASH, center.x, headY, center.z, 1, 0, 0, 0, 0);
+		}
 
-			int columnPoints = scaled(5, density);
-			for (int i = 0; i < columnPoints; i++) {
-				double h = random.nextDouble() * columnTop;
+		// --- 3. The collar: the wide skirt ringing the head's base -------
+		if (age > riseTicks) {
+			int collarPoints = scaled(10, density);
+			for (int i = 0; i < collarPoints; i++) {
+				double angle = (MathHelper.TAU * i) / collarPoints + random.nextDouble() * 0.5;
+				double cr = headR * (1.02 + random.nextDouble() * 0.3);
+				spawnForced(world, random.nextBoolean() ? pick(random, RIM) : pick(random, BODY),
+						center.x + Math.cos(angle) * cr,
+						headY - headR * 0.25 + spread(random, 2.5),
+						center.z + Math.sin(angle) * cr,
+						3, 1.8, 1.2, 1.8, 0);
+			}
+		}
+
+		// --- 4. The stem: a thick SOLID golden column ---------------------
+		if (age > 4) {
+			double stemR = capRadius * 0.22;
+			double stemTop = Math.max(4.0, headY - center.y - headR * 0.5);
+
+			int slices = scaled(12, density);
+			for (int i = 0; i < slices; i++) {
+				double h = random.nextDouble() * stemTop;
 				// Slow lateral wobble so the column looks alive, not extruded.
-				double wobble = 1.0 + 0.3 * Math.sin(h * 0.12 + age * 0.03);
-				double r = stemR * wobble * (0.4 + random.nextDouble() * 0.6);
+				double wobble = 1.0 + 0.25 * Math.sin(h * 0.12 + age * 0.03);
+				double rr = stemR * wobble * Math.sqrt(random.nextDouble());
 				double angle = random.nextDouble() * MathHelper.TAU;
-				spawnForced(world, ParticleTypes.CAMPFIRE_SIGNAL_SMOKE,
-						center.x + Math.cos(angle) * r, center.y + h, center.z + Math.sin(angle) * r,
-						2, 1.0, 1.6, 1.0, 0.012);
+				ParticleEffect dust = rr > stemR * wobble * 0.7 ? pick(random, RIM)
+						: young && rr < stemR * 0.35 ? pick(random, CORE)
+						: pick(random, BODY);
+				spawnForced(world, dust,
+						center.x + Math.cos(angle) * rr, center.y + h, center.z + Math.sin(angle) * rr,
+						4, 1.2, 1.6, 1.2, 0);
 			}
 
-			// Fire glow inside the lower third of the stem while the blast is young.
-			if (age < riseTicks + 40) {
+			// Fire inside the lower third of the stem while the blast is young.
+			if (young) {
 				spawnForced(world, ParticleTypes.FLAME,
-						center.x, center.y + random.nextDouble() * columnTop * 0.33, center.z,
+						center.x, center.y + random.nextDouble() * stemTop * 0.33, center.z,
 						scaled(6, density), stemR * 0.5, 2.0, stemR * 0.5, 0.01);
 			}
 
-			// Base surge: smoke pushed outward along the ground at the stem's foot.
+			// --- 5. Base surge: a dust wall crawling outward on the ground ---
 			if (age < duration * 3 / 4) {
-				int surgePoints = scaled(4, density);
+				double surgeR = Math.min(capRadius * 1.4, stemR * 2.0 + age * 0.12);
+				int surgePoints = scaled(5, density);
 				for (int i = 0; i < surgePoints; i++) {
 					double angle = random.nextDouble() * MathHelper.TAU;
-					double r = stemR * (1.5 + random.nextDouble() * 2.0);
-					double px = center.x + Math.cos(angle) * r;
-					double pz = center.z + Math.sin(angle) * r;
-					// count = 0 -> the "delta" is a velocity direction, scaled by speed.
-					spawnForced(world, ParticleTypes.CLOUD,
-							px, center.y + 1.0 + random.nextDouble() * 2.0, pz,
-							0, Math.cos(angle), 0.02, Math.sin(angle), 0.12);
+					spawnForced(world, pick(random, RIM),
+							center.x + Math.cos(angle) * surgeR,
+							center.y + 1.0 + random.nextDouble() * 2.5,
+							center.z + Math.sin(angle) * surgeR,
+							3, 1.6, 0.8, 1.6, 0);
 				}
 			}
 		}
 
-		// --- 4. The cap ---------------------------------------------------
-		if (age > riseTicks) {
-			double growth = easeOut((double) (age - riseTicks) / Math.max(1, duration - riseTicks));
-			double capR = capRadius * (0.3 + 0.7 * growth);
-			double capThick = capRadius * 0.35;
-			// The whole head breathes up and down a couple of blocks.
-			double capY = center.y + height + 2.0 * Math.sin(age * 0.03);
-
-			// RIM: an even ring with jitter, plus outward-curling velocity particles.
-			int rimPoints = scaled(10, density);
-			for (int i = 0; i < rimPoints; i++) {
-				double angle = (MathHelper.TAU * i) / rimPoints + random.nextDouble() * 0.4;
-				double r = capR * (0.92 + random.nextDouble() * 0.12);
-				double px = center.x + Math.cos(angle) * r;
-				double pz = center.z + Math.sin(angle) * r;
-				double py = capY + spread(random, 2.5);
-				spawnForced(world, ParticleTypes.CAMPFIRE_COSY_SMOKE, px, py, pz, 2, 1.8, 1.5, 1.8, 0.01);
-				// The signature curl: drift out and slightly down off the rim's edge.
-				spawnForced(world, ParticleTypes.CLOUD, px, py, pz,
-						0, Math.cos(angle), -0.25, Math.sin(angle), 0.1);
-			}
-
-			// DOME: fill above the rim; taller towards the center -> mushroom silhouette.
-			int domePoints = scaled(8, density);
-			for (int i = 0; i < domePoints; i++) {
-				double r = capR * Math.sqrt(random.nextDouble());
+		// --- 6. Dark debris specks across the sky + ash-fall --------------
+		if (age > 12) {
+			int specks = scaled(5, density);
+			for (int i = 0; i < specks; i++) {
 				double angle = random.nextDouble() * MathHelper.TAU;
-				double bulge = (1.0 - (r / capR) * (r / capR)) * capThick;
+				double r = capRadius * (0.5 + random.nextDouble() * 2.3);
 				spawnForced(world, ParticleTypes.LARGE_SMOKE,
 						center.x + Math.cos(angle) * r,
-						capY + random.nextDouble() * (2.0 + bulge),
+						center.y + 8 + random.nextDouble() * height * 1.2,
 						center.z + Math.sin(angle) * r,
-						2, 2.2, 1.8, 2.2, 0.004);
-			}
-
-			// UNDERSIDE: a thinner skirt hanging below the rim, curling back inward.
-			int skirtPoints = scaled(4, density);
-			for (int i = 0; i < skirtPoints; i++) {
-				double angle = random.nextDouble() * MathHelper.TAU;
-				double r = capR * (0.5 + random.nextDouble() * 0.4);
-				spawnForced(world, ParticleTypes.CAMPFIRE_COSY_SMOKE,
-						center.x + Math.cos(angle) * r,
-						capY - 3.0 - random.nextDouble() * 3.0,
-						center.z + Math.sin(angle) * r,
-						1, 1.5, 1.0, 1.5, 0.008);
-			}
-
-			// Young cap still burns from the inside.
-			if (age < riseTicks + 80) {
-				spawnForced(world, ParticleTypes.FLAME,
-						center.x, capY, center.z, scaled(8, density), capR * 0.3, 2.0, capR * 0.3, 0.02);
+						1, 0.3, 0.3, 0.3, 0.01);
 			}
 		}
-
-		// --- Ash rain over the whole area for the back half of the show ---
 		if (age > duration / 3) {
 			spawnForced(world, ParticleTypes.ASH,
 					center.x, center.y + height * 0.4, center.z,
